@@ -97,13 +97,12 @@ class HidroelectricaBalanceSensor(HidroelectricaBaseSensor):
         self._attr_name = "Sold Curent"
         self._attr_native_unit_of_measurement = CURRENCY_RON
         self._attr_device_class = SensorDeviceClass.MONETARY
-        self._attr_state_class = SensorStateClass.MEASUREMENT
         self._attr_icon = "mdi:cash-multiple"
 
     @property
     def native_value(self) -> Optional[float]:
         """Valoarea soldului."""
-        bill = self.pod_data.get("bill", {})
+        bill = self.pod_data.get("bill") or {}
         if not bill:
             return None
         # Soldul poate fi negativ dacă există plăți în avans
@@ -128,7 +127,7 @@ class HidroelectricaBillSensor(HidroelectricaBaseSensor):
     @property
     def native_value(self) -> Optional[float]:
         """Valoarea facturii."""
-        bill = self.pod_data.get("bill", {})
+        bill = self.pod_data.get("bill") or {}
         if not bill:
             return None
         try:
@@ -140,7 +139,7 @@ class HidroelectricaBillSensor(HidroelectricaBaseSensor):
     @property
     def extra_state_attributes(self) -> Dict[str, Any]:
         """Atribute suplimentare."""
-        bill = self.pod_data.get("bill", {})
+        bill = self.pod_data.get("bill") or {}
         return {
             ATTR_UTILITY_ACCOUNT_NUMBER: self._uan,
             ATTR_ACCOUNT_NUMBER: self._acc_number,
