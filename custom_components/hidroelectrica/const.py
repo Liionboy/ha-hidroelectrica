@@ -66,7 +66,7 @@ ENDPOINT_GET_METER_COUNTER_SERIES = "/Service/IndexHistory/GetMeterCounterSeries
 ENDPOINT_GET_METER_READ_HISTORY = "/Service/IndexHistory/GetMeterReadHistory"
 
 # ──────────────────────────────────────────────
-PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.BUTTON]
+PLATFORMS: list[Platform] = [Platform.SENSOR]
 
 # ──────────────────────────────────────────────
 ATTRIBUTION = "Date furnizate de Hidroelectrica România"
