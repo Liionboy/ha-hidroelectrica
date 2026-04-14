@@ -1,9 +1,9 @@
 {
   "domain": "hidroelectrica",
   "name": "Hidroelectrica România (iHidro)",
-  "documentation": "https://github.com/adrian/ha-hidroelectrica",
+  "documentation": "https://github.com/Liionboy/ha-hidroelectrica",
   "requirements": ["aiohttp"],
-  "codeowners": ["@adrian"],
+  "codeowners": ["@Liionboy"],
   "config_flow": true,
   "iot_class": "cloud_polling",
   "version": "1.0.0"
