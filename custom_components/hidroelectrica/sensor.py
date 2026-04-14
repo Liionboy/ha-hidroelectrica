@@ -104,14 +104,18 @@ class HidroelectricaBalanceSensor(HidroelectricaBaseSensor):
     @property
     def native_value(self) -> Optional[float]:
         """Valoarea soldului."""
-        bill = self.pod_data.get("bill") or {}
+        bill = self.pod_data.get("bill")
         if not bill:
+            _LOGGER.debug("Sold '%s': lipsește 'bill' în pod_data", self._uan)
             return None
-        # Soldul poate fi negativ dacă există plăți în avans
         try:
-            val = bill.get("TotalBalance", 0)
+            val = bill.get("TotalBalance")
+            if val is None:
+                 _LOGGER.debug("Sold '%s': cheia 'TotalBalance' lipsește în %s", self._uan, bill)
+                 return None
             return float(val)
-        except (ValueError, TypeError):
+        except (ValueError, TypeError) as err:
+            _LOGGER.error("Sold '%s': eroare conversie %s: %s", self._uan, val, err)
             return None
 
 
@@ -179,7 +183,6 @@ class HidroelectricaMeterSensor(HidroelectricaBaseSensor):
         registers = self.pod_data.get("registers", {})
         
         # Identificăm codul de registru
-        # 1.8.0 = Consum, 2.8.0 = Injecție
         if self._type == "consumption":
             reg_codes = ["1.8.0", "1.8.1", "1.8.2"]
         else:
@@ -188,17 +191,25 @@ class HidroelectricaMeterSensor(HidroelectricaBaseSensor):
         for code in reg_codes:
             if code in registers:
                 try:
-                    return float(registers[code].get("Reading", 0))
+                    val = registers[code].get("Reading")
+                    if val is not None:
+                        return float(val)
                 except (ValueError, TypeError):
                     continue
         
-        # Fallback la primul index găsit dacă nu am găsit codurile standard
-        if not registers and self.pod_data.get("meter"):
+        # Fallback la primul index găsit în 'meter' dacă nu am găsit codurile standard
+        meter = self.pod_data.get("meter")
+        if meter:
             try:
-                return float(self.pod_data["meter"].get("Reading", 0))
+                val = meter.get("Reading")
+                if val is not None:
+                    _LOGGER.debug("Index '%s' (%s): fallback la valoarea din 'meter'", self._uan, self._type)
+                    return float(val)
             except (ValueError, TypeError):
                 pass
 
+        _LOGGER.debug("Index '%s' (%s): nu am găsit nicio valoare în registers (%s) sau meter (%s)", 
+                     self._uan, self._type, list(registers.keys()), meter)
         return None
 
     @property

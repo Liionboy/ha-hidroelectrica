@@ -263,8 +263,12 @@ class HidroelectricaAPI:
             if not pods or not isinstance(pods, list):
                 return []
             
-            inst_id = pods[0].get("installation")
-            pod_val = pods[0].get("pod")
+            inst_id = pods[0].get("installation") or pods[0].get("InstallationNumber")
+            pod_val = pods[0].get("pod") or pods[0].get("PODValue") or pods[0].get("podValue")
+            
+            if not inst_id or not pod_val:
+                 _LOGGER.warning("Nu am putut găsi installation/pod în: %s", pods[0])
+                 return []
 
         history_payload = {
             "utilityAccountNumber": uan,

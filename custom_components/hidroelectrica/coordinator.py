@@ -48,30 +48,48 @@ class HidroelectricaDataUpdateCoordinator(DataUpdateCoordinator):
                 return {}
 
             data = {}
+            _LOGGER.debug("Procesare %s conturi", len(accounts))
+            
             for acc in accounts:
                 uan = acc.get("UtilityAccountNumber")
                 acc_num = acc.get("AccountNumber")
                 
-                if not uan:
+                if not uan or not acc_num:
+                    _LOGGER.warning("Cont ignorat (lipsă UAN sau AccountNumber): %s", acc)
                     continue
 
-                # 2. Obținem factura curentă
-                bill = await self.api.get_current_bill(uan, acc_num)
+                _LOGGER.debug("Preluare date pentru UAN: %s, Account: %s", uan, acc_num)
                 
-                # 3. Obținem istoricul indicilor pentru a extrage ultimul index
-                meter_history = await self.api.get_meter_history(uan)
+                # Preluăm datele în paralel pentru eficiență
+                results = await asyncio.gather(
+                    self.api.get_current_bill(uan, acc_num),
+                    self.api.get_usage(uan, acc_num),
+                    self.api.get_meter_history(uan),
+                    return_exceptions=True
+                )
+                
+                bill = results[0] if not isinstance(results[0], Exception) else None
+                usage = results[1] if not isinstance(results[1], Exception) else None
+                meter_history = results[2] if not isinstance(results[2], Exception) else []
+
+                if isinstance(results[0], Exception):
+                    _LOGGER.error("Eroare bill %s: %s", uan, results[0])
+                if isinstance(results[1], Exception):
+                    _LOGGER.warning("Eroare usage %s: %s", uan, results[1])
+                if isinstance(results[2], Exception):
+                    _LOGGER.error("Eroare history %s: %s", uan, results[2])
+
+                _LOGGER.debug("Istoric contor pentru %s: %s intrări", uan, len(meter_history))
                 
                 # Creăm un dicționar cu ultimele citiri pentru fiecare RegisterCode
-                # iHidro trimite de obicei o listă în care cele mai recente sunt la început.
                 registers = {}
-                if meter_history:
+                if meter_history and isinstance(meter_history, list):
                     for entry in meter_history:
+                        if not isinstance(entry, dict):
+                            continue
                         reg_code = entry.get("RegisterCode")
                         if reg_code and reg_code not in registers:
                             registers[reg_code] = entry
-
-                # 4. Obținem datele de consum (usage)
-                usage = await self.api.get_usage(uan, acc_num)
 
                 data[uan] = {
                     "account_info": acc,
@@ -82,6 +100,7 @@ class HidroelectricaDataUpdateCoordinator(DataUpdateCoordinator):
                     "usage": usage,
                 }
 
+            _LOGGER.debug("Update finalizat pentru %s POD-uri", len(data))
             return data
 
         except Exception as err:
