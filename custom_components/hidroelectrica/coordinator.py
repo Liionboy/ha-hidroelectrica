@@ -1,8 +1,11 @@
 """DataUpdateCoordinator for Hidroelectrica integration."""
 
+import asyncio
 import logging
 from datetime import timedelta
 from typing import Any, Dict
+
+import async_timeout
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
