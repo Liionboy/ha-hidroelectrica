@@ -8,7 +8,12 @@ from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_PASSWORD
 
 from .api import HidroelectricaApiClient
-from .const import CONF_USERNAME, DOMAIN
+from .const import (
+    CONF_USERNAME,
+    DOMAIN,
+    CONF_SELECTED_ACCOUNTS,
+    CONF_ACCOUNT_METADATA,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -43,6 +48,21 @@ class HidroelectricaConfigFlow(ConfigFlow, domain=DOMAIN):
                 )
                 
                 if await api.async_login():
+                    accounts = await api.async_fetch_utility_accounts()
+                    
+                    selected_accounts = []
+                    account_metadata = {}
+                    
+                    for acc in accounts:
+                        uan = acc.get("contractAccountID")
+                        if uan:
+                            selected_accounts.append(uan)
+                            account_metadata[uan] = acc
+
+                    user_input[CONF_SELECTED_ACCOUNTS] = selected_accounts
+                    user_input[CONF_ACCOUNT_METADATA] = account_metadata
+                    user_input["token_data"] = api.export_token_data()
+
                     return self.async_create_entry(
                         title=f"iHidro ({user_input[CONF_USERNAME]})",
                         data=user_input,
