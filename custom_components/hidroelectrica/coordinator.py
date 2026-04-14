@@ -61,19 +61,25 @@ class HidroelectricaDataUpdateCoordinator(DataUpdateCoordinator):
                 # 3. Obținem istoricul indicilor pentru a extrage ultimul index
                 meter_history = await self.api.get_meter_history(uan)
                 
-                # Căutăm ultimul index de consum (1.8.0) și injecție (2.8.0 / 1.8.0_P)
-                # iHidro trimite de obicei o listă, primul element fiind cel mai recent.
-                latest_reading = {}
+                # Creăm un dicționar cu ultimele citiri pentru fiecare RegisterCode
+                # iHidro trimite de obicei o listă în care cele mai recente sunt la început.
+                registers = {}
                 if meter_history:
-                    # Sortăm (just in case) după dată descrescător dacă există câmp de dată
-                    # De obicei vin deja sortate.
-                    latest_reading = meter_history[0]
+                    for entry in meter_history:
+                        reg_code = entry.get("RegisterCode")
+                        if reg_code and reg_code not in registers:
+                            registers[reg_code] = entry
+
+                # 4. Obținem datele de consum (usage)
+                usage = await self.api.get_usage(uan, acc_num)
 
                 data[uan] = {
                     "account_info": acc,
                     "bill": bill,
-                    "meter": latest_reading,
+                    "meter": registers.get("1.8.0") or registers.get("1.8.1") or (meter_history[0] if meter_history else {}),
+                    "registers": registers,
                     "meter_history": meter_history,
+                    "usage": usage,
                 }
 
             return data

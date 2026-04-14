@@ -1,0 +1,41 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "data": {
+          "username": "Email (iHidro User)",
+          "password": "Password"
+        },
+        "description": "Enter your iHidro.ro credentials to monitor your consumption and bills.",
+        "title": "Hidroelectrica Authentication"
+      }
+    },
+    "error": {
+      "invalid_auth": "Authentication failed. Check your email or password.",
+      "cannot_connect": "Connection error to Hidroelectrica servers.",
+      "unknown": "An unexpected error occurred."
+    },
+    "abort": {
+      "already_configured": "Account is already configured."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "balance": {
+        "name": "Current Balance"
+      },
+      "last_bill": {
+        "name": "Last Bill"
+      },
+      "consumption_index": {
+        "name": "Consumption Index (1.8.0)"
+      },
+      "injection_index": {
+        "name": "Injection Index (2.8.0)"
+      },
+      "monthly_usage": {
+        "name": "Estimated Monthly Usage"
+      }
+    }
+  }
+}

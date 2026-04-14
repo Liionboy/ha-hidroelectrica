@@ -41,15 +41,17 @@ async def async_setup_entry(
     coordinator: HidroelectricaDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
 
     entities = []
-    for uan, data in coordinator.data.items():
+    for uan in coordinator.data:
         # Sold Curent
         entities.append(HidroelectricaBalanceSensor(coordinator, uan))
         # Ultima Factură
         entities.append(HidroelectricaBillSensor(coordinator, uan))
         # Index Consum
         entities.append(HidroelectricaMeterSensor(coordinator, uan, "consumption"))
-        # Index Injecție (2.8.0 / 1.8.0_P)
+        # Index Injecție
         entities.append(HidroelectricaMeterSensor(coordinator, uan, "injection"))
+        # Consum lunar/recent
+        entities.append(HidroelectricaUsageSensor(coordinator, uan))
 
     async_add_entities(entities)
 
@@ -94,7 +96,7 @@ class HidroelectricaBalanceSensor(HidroelectricaBaseSensor):
     def __init__(self, coordinator: HidroelectricaDataUpdateCoordinator, uan: str) -> None:
         """Inițializare."""
         super().__init__(coordinator, uan, "balance")
-        self._attr_name = "Sold Curent"
+        self._attr_translation_key = "balance"
         self._attr_native_unit_of_measurement = CURRENCY_RON
         self._attr_device_class = SensorDeviceClass.MONETARY
         self._attr_icon = "mdi:cash-multiple"
@@ -119,7 +121,7 @@ class HidroelectricaBillSensor(HidroelectricaBaseSensor):
     def __init__(self, coordinator: HidroelectricaDataUpdateCoordinator, uan: str) -> None:
         """Inițializare."""
         super().__init__(coordinator, uan, "last_bill")
-        self._attr_name = "Ultima Factură"
+        self._attr_translation_key = "last_bill"
         self._attr_native_unit_of_measurement = CURRENCY_RON
         self._attr_device_class = SensorDeviceClass.MONETARY
         self._attr_icon = "mdi:file-document-outline"
@@ -161,11 +163,10 @@ class HidroelectricaMeterSensor(HidroelectricaBaseSensor):
     ) -> None:
         """Inițializare."""
         super().__init__(coordinator, uan, meter_type)
+        self._attr_translation_key = f"{meter_type}_index"
         if meter_type == "consumption":
-            self._attr_name = "Index Consum (1.8.0)"
             self._attr_icon = "mdi:gauge"
         else:
-            self._attr_name = "Index Injecție (2.8.0)"
             self._attr_icon = "mdi:gauge-empty"
 
         self._attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
@@ -175,31 +176,26 @@ class HidroelectricaMeterSensor(HidroelectricaBaseSensor):
     @property
     def native_value(self) -> Optional[float]:
         """Valoarea indexului."""
-        meter = self.pod_data.get("meter", {})
-        if not meter:
-            return None
+        registers = self.pod_data.get("registers", {})
         
-        # În API-ul iHidro, indexul vine de obicei sub formă de listă sau câmpuri dedicate.
-        # Încercăm să găsim RegisterCode corespunzător.
-        # registerCode "1.8.0" pentru consum, "2.8.0" sau "1.8.0_P" pentru injecție.
-        # Deoarece coordinatorul returnează meter history [0], verificăm dacă acesta are datele.
+        # Identificăm codul de registru
+        # 1.8.0 = Consum, 2.8.0 = Injecție
+        if self._type == "consumption":
+            reg_codes = ["1.8.0", "1.8.1", "1.8.2"]
+        else:
+            reg_codes = ["2.8.0", "1.8.0_P", "2.8.1"]
+
+        for code in reg_codes:
+            if code in registers:
+                try:
+                    return float(registers[code].get("Reading", 0))
+                except (ValueError, TypeError):
+                    continue
         
-        # NOTĂ: Structura exactă a obiectului meter depinde de răspunsul API-ului.
-        # Dacă meter_history[0] conține direct valoarea:
-        reg_code = "1.8.0" if self._type == "consumption" else "2.8.0"
-        
-        # iHidro uneori trimite RegisterCode și Reading în obiectul Table.
-        # Dacă meter este un rând din Table:
-        if meter.get("RegisterCode") == reg_code:
+        # Fallback la primul index găsit dacă nu am găsit codurile standard
+        if not registers and self.pod_data.get("meter"):
             try:
-                return float(meter.get("Reading", 0))
-            except (ValueError, TypeError):
-                pass
-        
-        # Dacă prosumatorul are câmpuri diferite:
-        if self._type == "injection" and meter.get("RegisterCode") == "1.8.0_P":
-            try:
-                return float(meter.get("Reading", 0))
+                return float(self.pod_data["meter"].get("Reading", 0))
             except (ValueError, TypeError):
                 pass
 
@@ -210,7 +206,33 @@ class HidroelectricaMeterSensor(HidroelectricaBaseSensor):
         """Atribute suplimentare."""
         meter = self.pod_data.get("meter", {})
         return {
-            ATTR_METER_NUMBER: meter.get("meterSerialNumber"),
+            ATTR_METER_NUMBER: meter.get("meterSerialNumber") or self._meter_number,
             ATTR_LAST_READING_DATE: meter.get("readingDate"),
             "tip_index": meter.get("readingType"),
         }
+
+
+class HidroelectricaUsageSensor(HidroelectricaBaseSensor):
+    """Senzor pentru consumul recent/lunar."""
+
+    def __init__(self, coordinator: HidroelectricaDataUpdateCoordinator, uan: str) -> None:
+        """Inițializare."""
+        super().__init__(coordinator, uan, "usage")
+        self._attr_translation_key = "monthly_usage"
+        self._attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+        self._attr_device_class = SensorDeviceClass.ENERGY
+        self._attr_state_class = SensorStateClass.TOTAL
+        self._attr_icon = "mdi:chart-line"
+
+    @property
+    def native_value(self) -> Optional[float]:
+        """Valoarea consumului."""
+        usage = self.pod_data.get("usage") or {}
+        # API-ul iHidro returnează o listă de valori în usage[result][Data]
+        # Totuși, structura depinde de perioada cerută.
+        # Pentru moment, extragem totalul dacă există.
+        try:
+            val = usage.get("TotalUsage", 0)
+            return float(val) if val else None
+        except (ValueError, TypeError):
+            return None

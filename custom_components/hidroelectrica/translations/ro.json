@@ -18,5 +18,24 @@
     "abort": {
       "already_configured": "Contul este deja configurat."
     }
+  },
+  "entity": {
+    "sensor": {
+      "balance": {
+        "name": "Sold Curent"
+      },
+      "last_bill": {
+        "name": "Ultima Factură"
+      },
+      "consumption_index": {
+        "name": "Index Consum (1.8.0)"
+      },
+      "injection_index": {
+        "name": "Index Injecție (2.8.0)"
+      },
+      "monthly_usage": {
+        "name": "Consum Lunar estimat"
+      }
+    }
   }
 }
