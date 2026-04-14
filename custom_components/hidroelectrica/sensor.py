@@ -199,7 +199,7 @@ class HidroelectricaMeterSensor(HidroelectricaBaseSensor):
         
         # Dacă prosumatorul are câmpuri diferite:
         if self._type == "injection" and meter.get("RegisterCode") == "1.8.0_P":
-             try:
+            try:
                 return float(meter.get("Reading", 0))
             except (ValueError, TypeError):
                 pass
