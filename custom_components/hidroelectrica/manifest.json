@@ -1,0 +1,10 @@
+{
+  "domain": "hidroelectrica",
+  "name": "Hidroelectrica România (iHidro)",
+  "documentation": "https://github.com/adrian/ha-hidroelectrica",
+  "requirements": ["aiohttp"],
+  "codeowners": ["@adrian"],
+  "config_flow": true,
+  "iot_class": "cloud_polling",
+  "version": "1.0.0"
+}

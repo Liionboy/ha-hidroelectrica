@@ -1,0 +1,22 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "data": {
+          "username": "Email (Utilizator iHidro)",
+          "password": "Parolă"
+        },
+        "description": "Introdu credențialele tale de pe portalul iHidro.ro pentru a monitoriza consumul și facturile.",
+        "title": "Autentificare Hidroelectrica"
+      }
+    },
+    "error": {
+      "invalid_auth": "Autentificare eșuată. Verifică email-ul sau parola.",
+      "cannot_connect": "Eroare de conectare la serverele Hidroelectrica.",
+      "unknown": "S-a produs o eroare neașteptată."
+    },
+    "abort": {
+      "already_configured": "Contul este deja configurat."
+    }
+  }
+}
