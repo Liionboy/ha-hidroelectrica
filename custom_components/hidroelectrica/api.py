@@ -311,6 +311,26 @@ class HidroelectricaApiClient:
         }
         return await self._post_auth(ENDPOINT_GET_MULTI_METER, payload, f"GetMultiMeter({utility_account_number})")
 
+    async def async_fetch_window_dates_enc(self, utility_account_number: str, account_number: str) -> dict | None:
+        """GetWindowDatesENC — ferestre autocitire enc."""
+        payload = {
+            "LanguageCode": DEFAULT_LANGUAGE,
+            "UserID": self._user_id,
+            "UtilityAccountNumber": utility_account_number,
+            "AccountNumber": account_number,
+        }
+        return await self._post_auth(ENDPOINT_GET_WINDOW_DATES_ENC, payload, f"GetWindowDatesENC({utility_account_number})")
+
+    async def async_fetch_window_dates(self, utility_account_number: str, account_number: str) -> dict | None:
+        """GetWindowDates — ferestre autocitire."""
+        payload = {
+            "LanguageCode": DEFAULT_LANGUAGE,
+            "UserID": self._user_id,
+            "UtilityAccountNumber": utility_account_number,
+            "AccountNumber": account_number,
+        }
+        return await self._post_auth(ENDPOINT_GET_WINDOW_DATES, payload, f"GetWindowDates({utility_account_number})")
+
     async def async_fetch_meter_counter_series(self, utility_account_number: str, installation_number: str, pod_value: str) -> dict | None:
         """GetMeterCounterSeries — serii contor pentru istoric."""
         payload = {
