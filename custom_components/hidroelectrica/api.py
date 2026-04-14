@@ -40,6 +40,26 @@ class HidroelectricaAPI:
         self._session_token: Optional[str] = None
         self._auth_header: Optional[Dict[str, str]] = None
 
+    def _safe_get(self, data: Any, path: List[str], default: Any = None) -> Any:
+        """Extragere sigură de date dintr-o structură ierarhică JSON."""
+        if not isinstance(data, dict):
+            # iHidro uneori returnează liste sau erori direct
+            if isinstance(data, list) and not path:
+                return data
+            return default
+        
+        current = data
+        for key in path:
+            if isinstance(current, dict):
+                current = current.get(key, {})
+            else:
+                return default
+        
+        # Dacă am ajuns la final și valoarea este {} (de la .get), returnăm default
+        if current == {} and (isinstance(default, list) or default is None):
+             return default
+        return current
+
     async def login(self) -> bool:
         """Autentificare la iHidro."""
         try:
@@ -53,7 +73,7 @@ class HidroelectricaAPI:
                     _LOGGER.error("Eroare GetId: %s", resp.status)
                     return False
                 res = await resp.json()
-                data = res.get("result", {}).get("Data", {})
+                data = self._safe_get(res, ["result", "Data"], {})
                 key = data.get("key")
                 token_id = data.get("tokenId")
 
@@ -86,9 +106,9 @@ class HidroelectricaAPI:
                     _LOGGER.error("Eroare login: %s", resp.status)
                     return False
                 res = await resp.json()
-                table = res.get("result", {}).get("Data", {}).get("Table", [])
-                if not table:
-                    _LOGGER.error("Login eșuat: date invalide")
+                table = self._safe_get(res, ["result", "Data", "Table"], [])
+                if not table or not isinstance(table, list):
+                    _LOGGER.error("Login eșuat: date invalide sau sesiune expirată")
                     return False
                 
                 self._user_id = table[0].get("UserID")
@@ -126,13 +146,17 @@ class HidroelectricaAPI:
             if resp.status != 200:
                 return []
             res = await resp.json()
-            data = res.get("result", {}).get("Data", {})
+            data = self._safe_get(res, ["result", "Data"], {})
             # Combinăm Table1 și Table2 (uneori POD-urile sunt splituite)
-            accounts = data.get("Table1", []) + data.get("Table2", [])
+            table1 = data.get("Table1", []) if isinstance(data, dict) else []
+            table2 = data.get("Table2", []) if isinstance(data, dict) else []
+            accounts = (table1 or []) + (table2 or [])
             # Eliminăm duplicatele după UtilityAccountNumber
             seen = set()
             unique_accounts = []
             for acc in accounts:
+                if not isinstance(acc, dict):
+                    continue
                 uan = acc.get("UtilityAccountNumber")
                 if uan and uan not in seen:
                     seen.add(uan)
@@ -159,8 +183,8 @@ class HidroelectricaAPI:
             if resp.status != 200:
                 return None
             res = await resp.json()
-            data = res.get("result", {}).get("Data", {}).get("Table", [])
-            return data[0] if data else None
+            table = self._safe_get(res, ["result", "Data", "Table"], [])
+            return table[0] if table and isinstance(table, list) else None
 
     async def get_bill_history(self, uan: str, account_number: str) -> List[Dict[str, Any]]:
         """Obține istoricul facturilor."""
@@ -187,7 +211,8 @@ class HidroelectricaAPI:
             if resp.status != 200:
                 return []
             res = await resp.json()
-            return res.get("result", {}).get("Data", {}).get("Table", [])
+            table = self._safe_get(res, ["result", "Data", "Table"], [])
+            return table if isinstance(table, list) else []
 
     async def get_usage(self, uan: str, account_number: str) -> Optional[Dict[str, Any]]:
         """Obține consumul."""
@@ -210,7 +235,8 @@ class HidroelectricaAPI:
             if resp.status != 200:
                 return None
             res = await resp.json()
-            return res.get("result", {}).get("Data", {})
+            data = self._safe_get(res, ["result", "Data"], {})
+            return data if isinstance(data, dict) else None
 
     async def get_meter_history(self, uan: str) -> List[Dict[str, Any]]:
         """Obține istoricul indicilor contorului."""
@@ -233,8 +259,8 @@ class HidroelectricaAPI:
             if resp.status != 200:
                 return []
             res = await resp.json()
-            pods = res.get("result", {}).get("Data", {}).get("Table", [])
-            if not pods:
+            pods = self._safe_get(res, ["result", "Data", "Table"], [])
+            if not pods or not isinstance(pods, list):
                 return []
             
             inst_id = pods[0].get("installation")
@@ -256,4 +282,5 @@ class HidroelectricaAPI:
             if resp.status != 200:
                 return []
             res = await resp.json()
-            return res.get("result", {}).get("Data", {}).get("Table", [])
+            table = self._safe_get(res, ["result", "Data", "Table"], [])
+            return table if isinstance(table, list) else []
