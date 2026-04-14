@@ -169,7 +169,7 @@ class HidroelectricaMeterSensor(HidroelectricaBaseSensor):
             self._attr_name = "Index Injecție (2.8.0)"
             self._attr_icon = "mdi:gauge-empty"
 
-        self._attr_native_unit_of_measurement = UnitOfEnergy.KILOWATT_HOUR
+        self._attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
         self._attr_device_class = SensorDeviceClass.ENERGY
         self._attr_state_class = SensorStateClass.TOTAL_INCREASING
 
