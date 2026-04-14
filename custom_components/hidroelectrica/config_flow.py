@@ -1,14 +1,13 @@
 """Config flow for Hidroelectrica integration."""
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 import voluptuous as vol
-from homeassistant import config_entries
+from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_PASSWORD
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .api import HidroelectricaAPI
+from .api import HidroelectricaApiClient
 from .const import CONF_USERNAME, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -21,27 +20,29 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 )
 
 
-class HidroelectricaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+class HidroelectricaConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Hidroelectrica."""
 
     VERSION = 1
 
     async def async_step_user(
-        self, user_input: Optional[Dict[str, Any]] = None
-    ) -> config_entries.FlowResult:
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Handle the initial step."""
-        errors: Dict[str, str] = {}
+        errors: dict[str, str] = {}
 
         if user_input is not None:
+            # Nu permite configurarea aceluiași cont de două ori
+            await self.async_set_unique_id(user_input[CONF_USERNAME])
+            self._abort_if_unique_id_configured()
+
             try:
-                session = async_get_clientsession(self.hass)
-                api = HidroelectricaAPI(
-                    session,
+                api = HidroelectricaApiClient(
                     user_input[CONF_USERNAME],
                     user_input[CONF_PASSWORD],
                 )
                 
-                if await api.login():
+                if await api.async_login():
                     return self.async_create_entry(
                         title=f"iHidro ({user_input[CONF_USERNAME]})",
                         data=user_input,
