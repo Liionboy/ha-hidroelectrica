@@ -1,111 +1,194 @@
-"""DataUpdateCoordinator for Hidroelectrica integration."""
+"""DataUpdateCoordinator pentru integrarea Hidroelectrica România.
+
+Strategia de actualizare:
+- Refresh ușor (light):  endpoint-uri esențiale — bill, multi_meter, window_dates
+- Refresh greu (heavy, la fiecare al 4-lea): + usage, billing_history, meter_read_history
+- Datele grele se reutilizează între refresh-urile ușoare
+"""
+
+from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import timedelta
-from typing import Any, Dict
+from datetime import datetime, timedelta
 
-import async_timeout
-
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.helpers.update_coordinator import (
+    DataUpdateCoordinator,
+    UpdateFailed,
+)
 
-from .api import HidroelectricaAPI
+from .api import HidroelectricaApiClient, HidroelectricaApiError
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
+HEAVY_REFRESH_EVERY = 4
 
-class HidroelectricaDataUpdateCoordinator(DataUpdateCoordinator):
-    """Clasă pentru gestionarea actualizărilor de date de la Hidroelectrica."""
+
+class HidroelectricaCoordinator(DataUpdateCoordinator):
+    """Coordinator pentru datele Hidroelectrica — per cont (UAN)."""
 
     def __init__(
         self,
         hass: HomeAssistant,
-        api: HidroelectricaAPI,
-        update_interval: timedelta,
+        api_client: HidroelectricaApiClient,
+        uan: str,
+        account_number: str,
+        update_interval: int,
+        config_entry: ConfigEntry | None = None,
     ) -> None:
-        """Inițializare coordinator."""
-        self.api = api
         super().__init__(
             hass,
             _LOGGER,
-            name=DOMAIN,
-            update_interval=update_interval,
+            name=f"HidroelectricaCoordinator_{uan}",
+            update_interval=timedelta(seconds=update_interval),
         )
 
-    async def _async_update_data(self) -> Dict[str, Any]:
-        """Fetch data from API."""
+        self.api_client = api_client
+        self.uan = uan
+        self.account_number = account_number
+        self._config_entry = config_entry
+        self._refresh_counter: int = 0
+        # Salvăm generația token-ului la creare
+        self._startup_gen: int = api_client.token_generation
+
+    @property
+    def _is_heavy_refresh(self) -> bool:
+        """Determină dacă refresh-ul curent este „greu"."""
+        return self._refresh_counter % HEAVY_REFRESH_EVERY == 0
+
+    async def _async_update_data(self) -> dict:
+        """Obține date de la API cu strategie light/heavy."""
+        uan = self.uan
+        acc = self.account_number
+        is_heavy = self._is_heavy_refresh
+
+        _LOGGER.debug(
+            "Actualizare Hidroelectrica (UAN=%s, AccountNumber='%s', refresh=#%s, tip=%s).",
+            uan, acc, self._refresh_counter, "HEAVY" if is_heavy else "light",
+        )
+
+        if not acc:
+            _LOGGER.warning("AccountNumber GOL pentru UAN=%s! Se încearcă obținerea din API...", uan)
+            try:
+                await self.api_client.async_ensure_authenticated()
+                fresh_accounts = await self.api_client.async_fetch_utility_accounts()
+                for fa in fresh_accounts:
+                    if fa.get("contractAccountID", "").strip() == uan:
+                        acc = fa.get("accountNumber", "").strip()
+                        if acc:
+                            self.account_number = acc
+                            _LOGGER.info("AccountNumber obținut din API: '%s' (UAN=%s).", acc, uan)
+                        break
+            except Exception as err:
+                _LOGGER.error("Eroare la obținerea AccountNumber din API (UAN=%s): %s", uan, err)
+
         try:
-            # Asigurăm autentificarea (login-ul se face o singură dată sau re-login dacă e nevoie)
-            # În mod real, ar trebui să verificăm dacă token-ul e valid, 
-            # dar pentru simplitate încercăm login-ul dacă nu avem auth_header.
-            if not self.api._auth_header:
-                if not await self.api.login():
-                    raise UpdateFailed("Autentificare eșuată")
+            # Re-autentificare preventivă la startup
+            if self._refresh_counter == 0 and self._startup_gen == self.api_client.token_generation:
+                _LOGGER.debug("Primul refresh — forțez login proaspăt (UAN=%s).", uan)
+                self.api_client.invalidate_session()
+                await self.api_client.async_ensure_authenticated()
+            elif not self.api_client.has_token:
+                await self.api_client.async_ensure_authenticated()
 
-            # 1. Obținem conturile (POD-urile)
-            accounts = await self.api.get_accounts()
-            if not accounts:
-                _LOGGER.warning("Nu am găsit conturi Hidroelectrica")
-                return {}
+            # Faza 1: Request-uri paralele esențiale
+            essential_phase1 = [
+                self.api_client.async_fetch_multi_meter(uan, acc),
+                self.api_client.async_fetch_bill(uan, acc),
+                self.api_client.async_fetch_window_dates_enc(uan, acc),
+                self.api_client.async_fetch_window_dates(uan, acc),
+                self.api_client.async_fetch_pods(uan, acc),
+            ]
 
-            data = {}
-            _LOGGER.debug("Procesare %s conturi", len(accounts))
-            
-            for acc in accounts:
-                uan = acc.get("UtilityAccountNumber")
-                acc_num = acc.get("AccountNumber")
-                
-                if not uan or not acc_num:
-                    _LOGGER.warning("Cont ignorat (lipsă UAN sau AccountNumber): %s", acc)
-                    continue
+            (
+                multi_meter,
+                bill,
+                window_dates_enc,
+                window_dates,
+                pods,
+            ) = await asyncio.gather(*essential_phase1)
 
-                _LOGGER.debug("Preluare date pentru UAN: %s, Account: %s", uan, acc_num)
-                
-                # Preluăm datele în paralel pentru eficiență
-                results = await asyncio.gather(
-                    self.api.get_current_bill(uan, acc_num),
-                    self.api.get_usage(uan, acc_num),
-                    self.api.get_meter_history(uan),
-                    return_exceptions=True
-                )
-                
-                bill = results[0] if not isinstance(results[0], Exception) else None
-                usage = results[1] if not isinstance(results[1], Exception) else None
-                meter_history = results[2] if not isinstance(results[2], Exception) else []
+            # Extragere InstallationNumber / podValue din GetPods
+            installation_number = ""
+            pod_value = ""
+            customer_number = ""
 
-                if isinstance(results[0], Exception):
-                    _LOGGER.error("Eroare bill %s: %s", uan, results[0])
-                if isinstance(results[1], Exception):
-                    _LOGGER.warning("Eroare usage %s: %s", uan, results[1])
-                if isinstance(results[2], Exception):
-                    _LOGGER.error("Eroare history %s: %s", uan, results[2])
+            if pods and isinstance(pods, dict):
+                pods_data = pods.get("result", {}).get("Data", [])
+                if isinstance(pods_data, list) and pods_data:
+                    first_pod = pods_data[0]
+                    installation_number = str(first_pod.get("installation", first_pod.get("InstallationNumber", "")))
+                    pod_value = str(first_pod.get("pod", first_pod.get("podValue", "")))
+                    customer_number = str(first_pod.get("accountID", ""))
 
-                _LOGGER.debug("Istoric contor pentru %s: %s intrări", uan, len(meter_history))
-                
-                # Creăm un dicționar cu ultimele citiri pentru fiecare RegisterCode
-                registers = {}
-                if meter_history and isinstance(meter_history, list):
-                    for entry in meter_history:
-                        if not isinstance(entry, dict):
-                            continue
-                        reg_code = entry.get("RegisterCode")
-                        if reg_code and reg_code not in registers:
-                            registers[reg_code] = entry
+            # Faza 2: GetPreviousMeterRead (depinde de Pods)
+            previous_meter_read = await self.api_client.async_fetch_previous_meter_read(
+                uan,
+                installation_number=installation_number,
+                pod_value=pod_value,
+                customer_number=customer_number,
+            )
 
-                data[uan] = {
-                    "account_info": acc,
-                    "bill": bill,
-                    "meter": registers.get("1.8.0") or registers.get("1.8.1") or (meter_history[0] if meter_history else {}),
-                    "registers": registers,
-                    "meter_history": meter_history,
-                    "usage": usage,
-                }
+            # Endpoint-uri GRELE (doar la heavy refresh)
+            prev = self.data or {}
+            if is_heavy:
+                end_date = datetime.now()
+                start_date = end_date - timedelta(days=2 * 365)
+                from_date = start_date.strftime("%Y-%m-%d")
+                to_date = end_date.strftime("%Y-%m-%d")
 
-            _LOGGER.debug("Update finalizat pentru %s POD-uri", len(data))
-            return data
+                heavy_tasks = [
+                    self.api_client.async_fetch_usage(uan, acc),
+                    self.api_client.async_fetch_billing_history(uan, acc, from_date, to_date),
+                    self.api_client.async_fetch_meter_counter_series(uan, installation_number, pod_value),
+                    self.api_client.async_fetch_meter_read_history(uan, installation_number, pod_value),
+                ]
 
+                (usage, billing_history, meter_counter_series, meter_read_history) = await asyncio.gather(*heavy_tasks)
+            else:
+                usage = prev.get("usage")
+                billing_history = prev.get("billing_history")
+                meter_counter_series = prev.get("meter_counter_series")
+                meter_read_history = prev.get("meter_read_history")
+
+        except HidroelectricaApiError as err:
+            _LOGGER.error("Eroare API la actualizarea datelor (UAN=%s): %s", uan, err)
+            raise UpdateFailed(f"Eroare API Hidroelectrica: {err}") from err
         except Exception as err:
-            _LOGGER.exception("Eroare la actualizarea datelor: %s", err)
-            raise UpdateFailed(f"Eroare comunicare API: {err}") from err
+            _LOGGER.exception("Eroare neașteptată la actualizarea datelor (UAN=%s): %s", uan, err)
+            raise UpdateFailed("Eroare neașteptată la actualizarea datelor Hidroelectrica.") from err
+
+        # Persistăm token-ul
+        self._persist_token()
+
+        # Incrementăm contorul
+        self._refresh_counter += 1
+
+        return {
+            "multi_meter": multi_meter,
+            "bill": bill,
+            "window_dates_enc": window_dates_enc,
+            "window_dates": window_dates,
+            "pods": pods,
+            "previous_meter_read": previous_meter_read,
+            "usage": usage,
+            "billing_history": billing_history,
+            "meter_counter_series": meter_counter_series,
+            "meter_read_history": meter_read_history,
+        }
+
+    def _persist_token(self) -> None:
+        """Persistă token-ul curent în config_entry.data (pentru restart HA)."""
+        if self._config_entry is None:
+            return
+        token_data = self.api_client.export_token_data()
+        if token_data is None:
+            return
+
+        current_data = dict(self._config_entry.data)
+        current_data["token_data"] = token_data
+        self.hass.config_entries.async_update_entry(self._config_entry, data=current_data)
+        _LOGGER.debug("Token persistat în config_entry (UAN=%s).", self.uan)
