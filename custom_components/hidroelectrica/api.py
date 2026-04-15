@@ -260,9 +260,13 @@ class HidroelectricaApiClient:
                         data=payload
                     )
                 except Exception as retry_exc:
-                    _LOGGER.error("[%s] Retry failed: %s", label, retry_exc)
-                    return None
-            return None
+                    _LOGGER.error("[%s] Retry also failed: %s", label, retry_exc)
+                    raise HidroelectricaApiError(
+                        f"[{label}] Eșuat după retry: {retry_exc}"
+                    ) from retry_exc
+            raise HidroelectricaApiError(
+                f"[{label}] Eșuat (token deja reînnoit de alt apel): {exc}"
+            ) from exc
 
     @staticmethod
     def _extract_data(response: dict, label: str) -> dict:

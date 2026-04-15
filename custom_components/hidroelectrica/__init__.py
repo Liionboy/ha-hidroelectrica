@@ -8,6 +8,7 @@ from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
@@ -92,10 +93,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             await coordinator.async_config_entry_first_refresh()
         except UpdateFailed as err:
             _LOGGER.error("Prima actualizare eșuată (UAN=%s): %s", uan, err)
-            continue
+            raise ConfigEntryNotReady(f"Actualizare eșuată (UAN={uan}): {err}") from err
         except Exception as err:
             _LOGGER.exception("Eroare neașteptată la prima actualizare (UAN=%s): %s", uan, err)
-            continue
+            raise ConfigEntryNotReady(f"Eroare neașteptată (UAN={uan}): {err}") from err
 
         coordinators[uan] = coordinator
 

@@ -164,10 +164,7 @@ class HidroelectricaCoordinator(DataUpdateCoordinator):
         # Persistăm token-ul
         self._persist_token()
 
-        # Incrementăm contorul
-        self._refresh_counter += 1
-
-        return {
+        result = {
             "multi_meter": multi_meter,
             "bill": bill,
             "window_dates_enc": window_dates_enc,
@@ -179,6 +176,30 @@ class HidroelectricaCoordinator(DataUpdateCoordinator):
             "meter_counter_series": meter_counter_series,
             "meter_read_history": meter_read_history,
         }
+
+        # Validare minimală: bill este esențial
+        if bill is None:
+            _LOGGER.error(
+                "Datele esențiale lipsesc după refresh (UAN=%s): bill=%s. "
+                "Se va reîncerca la următorul interval.",
+                uan, bill,
+            )
+            raise UpdateFailed(
+                f"Datele esențiale lipsesc după refresh (UAN={uan})"
+            )
+
+        # Incrementăm contorul doar la succes
+        self._refresh_counter += 1
+
+        _LOGGER.debug(
+            "Actualizare completă (UAN=%s, refresh=#%s): bill=%s, pods=%s, usage=%s.",
+            uan, self._refresh_counter,
+            "OK" if bill else "LIPSĂ",
+            "OK" if pods else "LIPSĂ",
+            "OK" if usage else "LIPSĂ/refolosit",
+        )
+
+        return result
 
     def _persist_token(self) -> None:
         """Persistă token-ul curent în config_entry.data (pentru restart HA)."""
