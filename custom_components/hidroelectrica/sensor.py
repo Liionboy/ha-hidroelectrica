@@ -860,7 +860,7 @@ class IndexEnergieSensor(HidroelectricaEntity):
     def native_value(self):
         data = self.coordinator.data
         if not data:
-            return 0
+            return None
 
         latest = _get_latest_meter_read(data, register_filter="1.8.0")
         if not latest:
@@ -886,7 +886,7 @@ class IndexEnergieSensor(HidroelectricaEntity):
         if mcs_index is not None:
             return mcs_index
 
-        return 0
+        return None
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -991,7 +991,7 @@ class IndexEnergieProdusSensor(HidroelectricaEntity):
     def native_value(self):
         data = self.coordinator.data
         if not data:
-            return 0
+            return None
 
         latest = _get_latest_meter_read(data, register_filter="1.8.0_P")
         if latest:
@@ -1001,7 +1001,7 @@ class IndexEnergieProdusSensor(HidroelectricaEntity):
                     return int(idx)
                 except (ValueError, TypeError):
                     pass
-        return 0
+        return None
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:

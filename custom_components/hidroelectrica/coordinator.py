@@ -124,6 +124,20 @@ class HidroelectricaCoordinator(DataUpdateCoordinator):
                     pod_value = str(first_pod.get("pod", first_pod.get("podValue", "")))
                     customer_number = str(first_pod.get("accountID", ""))
 
+            # Validăm răspunsurile esențiale (dacă lipsesc, păstrăm ultimul set valid)
+            essential_results = {
+                "multi_meter": multi_meter,
+                "bill": bill,
+                "window_dates_enc": window_dates_enc,
+                "window_dates": window_dates,
+                "pods": pods,
+            }
+            missing_essential = [k for k, v in essential_results.items() if not isinstance(v, dict)]
+            if missing_essential:
+                raise UpdateFailed(
+                    f"Date esențiale lipsă/invalid la refresh ({', '.join(missing_essential)})."
+                )
+
             # Faza 2: GetPreviousMeterRead (depinde de Pods)
             previous_meter_read = await self.api_client.async_fetch_previous_meter_read(
                 uan,
@@ -131,6 +145,15 @@ class HidroelectricaCoordinator(DataUpdateCoordinator):
                 pod_value=pod_value,
                 customer_number=customer_number,
             )
+
+            # Endpoint-uri istorice de index (necesare pentru senzori de index) — la fiecare refresh
+            meter_counter_series, meter_read_history = await asyncio.gather(
+                self.api_client.async_fetch_meter_counter_series(uan, installation_number, pod_value),
+                self.api_client.async_fetch_meter_read_history(uan, installation_number, pod_value),
+            )
+
+            if not isinstance(meter_counter_series, dict) or not isinstance(meter_read_history, dict):
+                raise UpdateFailed("Date index lipsă/invalid (meter_counter_series / meter_read_history).")
 
             # Endpoint-uri GRELE (doar la heavy refresh)
             prev = self.data or {}
@@ -143,16 +166,12 @@ class HidroelectricaCoordinator(DataUpdateCoordinator):
                 heavy_tasks = [
                     self.api_client.async_fetch_usage(uan, acc),
                     self.api_client.async_fetch_billing_history(uan, acc, from_date, to_date),
-                    self.api_client.async_fetch_meter_counter_series(uan, installation_number, pod_value),
-                    self.api_client.async_fetch_meter_read_history(uan, installation_number, pod_value),
                 ]
 
-                (usage, billing_history, meter_counter_series, meter_read_history) = await asyncio.gather(*heavy_tasks)
+                (usage, billing_history) = await asyncio.gather(*heavy_tasks)
             else:
                 usage = prev.get("usage")
                 billing_history = prev.get("billing_history")
-                meter_counter_series = prev.get("meter_counter_series")
-                meter_read_history = prev.get("meter_read_history")
 
         except HidroelectricaApiError as err:
             _LOGGER.error("Eroare API la actualizarea datelor (UAN=%s): %s", uan, err)
