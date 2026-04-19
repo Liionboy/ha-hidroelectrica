@@ -851,6 +851,7 @@ class IndexEnergieSensor(HidroelectricaEntity):
         self._attr_icon = "mdi:lightning-bolt"
         self._attr_unique_id = f"{DOMAIN}_index_curent_{self._uan}"
         self._custom_entity_id = f"sensor.{DOMAIN}_{self._uan}_index_energie_electrica"
+        self._last_valid_value: int | None = None
 
     @property
     def native_unit_of_measurement(self) -> str:
@@ -860,7 +861,7 @@ class IndexEnergieSensor(HidroelectricaEntity):
     def native_value(self):
         data = self.coordinator.data
         if not data:
-            return None
+            return self._last_valid_value
 
         latest = _get_latest_meter_read(data, register_filter="1.8.0")
         if not latest:
@@ -869,7 +870,9 @@ class IndexEnergieSensor(HidroelectricaEntity):
             idx = latest.get("Index")
             if idx is not None:
                 try:
-                    return int(idx)
+                    value = int(idx)
+                    self._last_valid_value = value
+                    return value
                 except (ValueError, TypeError):
                     pass
 
@@ -878,15 +881,18 @@ class IndexEnergieSensor(HidroelectricaEntity):
             prev_val = prev.get("prevMRResult")
             if prev_val is not None:
                 try:
-                    return int(prev_val)
+                    value = int(prev_val)
+                    self._last_valid_value = value
+                    return value
                 except (ValueError, TypeError):
                     pass
 
         mcs_index, _ = _get_meter_counter_series_fallback(data)
         if mcs_index is not None:
+            self._last_valid_value = mcs_index
             return mcs_index
 
-        return None
+        return self._last_valid_value
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -982,6 +988,7 @@ class IndexEnergieProdusSensor(HidroelectricaEntity):
         self._attr_icon = "mdi:solar-power-variant"
         self._attr_unique_id = f"{DOMAIN}_index_produs_{self._uan}"
         self._custom_entity_id = f"sensor.{DOMAIN}_{self._uan}_index_energie_produsa"
+        self._last_valid_value: int | None = None
 
     @property
     def native_unit_of_measurement(self) -> str:
@@ -991,17 +998,19 @@ class IndexEnergieProdusSensor(HidroelectricaEntity):
     def native_value(self):
         data = self.coordinator.data
         if not data:
-            return None
+            return self._last_valid_value
 
         latest = _get_latest_meter_read(data, register_filter="1.8.0_P")
         if latest:
             idx = latest.get("Index")
             if idx is not None:
                 try:
-                    return int(idx)
+                    value = int(idx)
+                    self._last_valid_value = value
+                    return value
                 except (ValueError, TypeError):
                     pass
-        return None
+        return self._last_valid_value
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
