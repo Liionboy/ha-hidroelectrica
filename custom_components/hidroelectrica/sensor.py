@@ -1142,6 +1142,7 @@ class ArhivaConsumSensor(HidroelectricaEntity):
     def __init__(self, coordinator, config_entry, year: int):
         super().__init__(coordinator, config_entry)
         self._year = year
+        self._last_valid_value: float | int | None = None
         self._attr_name = f"{year} → Arhivă consum energie electrică"
         self._attr_unique_id = f"{DOMAIN}_arhiva_consum_{self._uan}_{year}"
         self._custom_entity_id = (
@@ -1156,13 +1157,15 @@ class ArhivaConsumSensor(HidroelectricaEntity):
     def native_value(self):
         entries = self._get_entries()
         if not entries:
-            return 0
+            return self._last_valid_value if self._last_valid_value is not None else 0
         total = sum(
             float(e.get("value", 0))
             for e in entries
             if e.get("value") is not None
         )
-        return round(total, 2)
+        value = round(total, 2)
+        self._last_valid_value = value
+        return value
 
     @property
     def native_unit_of_measurement(self):
@@ -1218,6 +1221,7 @@ class ArhivaIndexSensor(HidroelectricaEntity):
         super().__init__(coordinator, config_entry)
         self._year = year
         self._register_filter = register_filter
+        self._last_valid_value: int | None = None
         self._attr_name = f"{year} → Arhivă index energie electrică"
         self._attr_unique_id = f"{DOMAIN}_arhiva_index_{self._uan}_{year}"
         self._custom_entity_id = (
@@ -1230,7 +1234,12 @@ class ArhivaIndexSensor(HidroelectricaEntity):
 
     @property
     def native_value(self):
-        return len(self._get_entries())
+        entries = self._get_entries()
+        if entries:
+            value = len(entries)
+            self._last_valid_value = value
+            return value
+        return self._last_valid_value if self._last_valid_value is not None else 0
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -1269,6 +1278,7 @@ class ArhivaIndexProdusSensor(HidroelectricaEntity):
     def __init__(self, coordinator, config_entry, year: int):
         super().__init__(coordinator, config_entry)
         self._year = year
+        self._last_valid_value: int | None = None
         self._attr_name = f"{year} → Arhivă index energie produsă"
         self._attr_unique_id = f"{DOMAIN}_arhiva_index_produs_{self._uan}_{year}"
         self._custom_entity_id = (
@@ -1283,7 +1293,12 @@ class ArhivaIndexProdusSensor(HidroelectricaEntity):
 
     @property
     def native_value(self):
-        return len(self._get_entries())
+        entries = self._get_entries()
+        if entries:
+            value = len(entries)
+            self._last_valid_value = value
+            return value
+        return self._last_valid_value if self._last_valid_value is not None else 0
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -1322,6 +1337,7 @@ class ArhivaPlatiSensor(HidroelectricaEntity):
     def __init__(self, coordinator, config_entry, year: int):
         super().__init__(coordinator, config_entry)
         self._year = year
+        self._last_valid_value: int | None = None
         self._attr_name = f"{year} → Arhivă plăți"
         self._attr_unique_id = f"{DOMAIN}_arhiva_plati_{self._uan}_{year}"
         self._custom_entity_id = f"sensor.{DOMAIN}_{self._uan}_arhiva_plati_{year}"
@@ -1334,7 +1350,12 @@ class ArhivaPlatiSensor(HidroelectricaEntity):
 
     @property
     def native_value(self):
-        return len(self._get_entries())
+        entries = self._get_entries()
+        if entries:
+            value = len(entries)
+            self._last_valid_value = value
+            return value
+        return self._last_valid_value if self._last_valid_value is not None else 0
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -1393,6 +1414,7 @@ class ArhivaPlatiProsumatorSensor(HidroelectricaEntity):
     def __init__(self, coordinator, config_entry, year: int):
         super().__init__(coordinator, config_entry)
         self._year = year
+        self._last_valid_value: int | None = None
         self._attr_name = f"{year} → Arhivă plăți prosumator"
         self._attr_unique_id = (
             f"{DOMAIN}_arhiva_plati_prosumator_{self._uan}_{year}"
@@ -1409,7 +1431,12 @@ class ArhivaPlatiProsumatorSensor(HidroelectricaEntity):
 
     @property
     def native_value(self):
-        return len(self._get_entries())
+        entries = self._get_entries()
+        if entries:
+            value = len(entries)
+            self._last_valid_value = value
+            return value
+        return self._last_valid_value if self._last_valid_value is not None else 0
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:

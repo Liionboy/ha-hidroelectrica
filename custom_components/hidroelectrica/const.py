@@ -8,7 +8,7 @@ DOMAIN = "hidroelectrica"
 DOMAIN_TOKEN_STORE = f"{DOMAIN}_token_store"  # Cheie în hass.data pentru token-uri SEW
 
 # ──────────────────────────────────────────────
-DEFAULT_UPDATE_INTERVAL = 3600  # Interval de actualizare în secunde (1 oră)
+DEFAULT_UPDATE_INTERVAL = 1800  # Interval de actualizare în secunde (30 minute)
 MIN_UPDATE_INTERVAL = 300       # 5 minute
 MAX_UPDATE_INTERVAL = 86400     # 24 ore
 
