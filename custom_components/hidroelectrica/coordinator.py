@@ -59,6 +59,46 @@ class HidroelectricaCoordinator(DataUpdateCoordinator):
         """Determină dacă refresh-ul curent este „greu"."""
         return self._refresh_counter % HEAVY_REFRESH_EVERY == 0
 
+    @staticmethod
+    def _has_content(payload: object) -> bool:
+        """Verifică dacă răspunsul API conține date utile (nu doar structură goală)."""
+        if not isinstance(payload, dict):
+            return False
+
+        result = payload.get("result")
+        if not isinstance(result, dict):
+            return False
+
+        data = result.get("Data")
+        if data is None:
+            return False
+
+        if isinstance(data, list):
+            return len(data) > 0
+
+        if isinstance(data, dict):
+            for value in data.values():
+                if isinstance(value, list) and value:
+                    return True
+                if isinstance(value, dict) and value:
+                    return True
+                if value not in (None, "", 0, "0", False, []):
+                    return True
+            return False
+
+        return data not in (None, "", 0, "0", False)
+
+    def _prefer_previous_if_empty(self, label: str, new_payload: object, prev_payload: object) -> object:
+        """Păstrează ultimul payload valid dacă refresh-ul curent vine gol/invalid."""
+        if self._has_content(prev_payload) and not self._has_content(new_payload):
+            _LOGGER.warning(
+                "Payload gol pentru %s (UAN=%s). Păstrez ultimul set valid.",
+                label,
+                self.uan,
+            )
+            return prev_payload
+        return new_payload
+
     async def _async_update_data(self) -> dict:
         """Obține date de la API cu strategie light/heavy."""
         uan = self.uan
@@ -155,8 +195,9 @@ class HidroelectricaCoordinator(DataUpdateCoordinator):
             if not isinstance(meter_counter_series, dict) or not isinstance(meter_read_history, dict):
                 raise UpdateFailed("Date index lipsă/invalid (meter_counter_series / meter_read_history).")
 
-            # Endpoint-uri GRELE (doar la heavy refresh)
             prev = self.data or {}
+
+            # Endpoint-uri GRELE (doar la heavy refresh)
             if is_heavy:
                 end_date = datetime.now()
                 start_date = end_date - timedelta(days=2 * 365)
@@ -172,6 +213,22 @@ class HidroelectricaCoordinator(DataUpdateCoordinator):
             else:
                 usage = prev.get("usage")
                 billing_history = prev.get("billing_history")
+
+            # Anti-zero safety: nu suprascriem cu payload-uri goale dacă avem date istorice valide
+            bill = self._prefer_previous_if_empty("bill", bill, prev.get("bill"))
+            previous_meter_read = self._prefer_previous_if_empty(
+                "previous_meter_read", previous_meter_read, prev.get("previous_meter_read")
+            )
+            meter_counter_series = self._prefer_previous_if_empty(
+                "meter_counter_series", meter_counter_series, prev.get("meter_counter_series")
+            )
+            meter_read_history = self._prefer_previous_if_empty(
+                "meter_read_history", meter_read_history, prev.get("meter_read_history")
+            )
+            usage = self._prefer_previous_if_empty("usage", usage, prev.get("usage"))
+            billing_history = self._prefer_previous_if_empty(
+                "billing_history", billing_history, prev.get("billing_history")
+            )
 
         except HidroelectricaApiError as err:
             _LOGGER.error("Eroare API la actualizarea datelor (UAN=%s): %s", uan, err)
