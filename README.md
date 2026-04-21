@@ -48,6 +48,11 @@ Aceasta este cea mai simplă metodă și vă permite să primiți update-uri vii
 > [!TIP]
 > **Modificarea Conturilor Urmărite**: Dacă doriți să ascundeți un anumit cont/apartament, mergeți pe pagina integrării, dați click pe **Configure** și debifați din listă contul pe care nu mai doriți să-l actualizați.
 
+## 🧩 Card Lovelace inclus (v1)
+- Fișier: `custom_components/hidroelectrica/www/hidroelectrica-card.js`
+- Resource: `/local/hidroelectrica-card.js` (după copiere în `/config/www/`)
+- Tip card: `custom:hidroelectrica-card`
+
 ## 🔌 Senzori Incluși
 Se creează câte un grup de senzori per loc de consum (Dispozitiv / Device):
 * `sensor.sold_curent` (cu atribute detaliate pentru facturile neînchise)
