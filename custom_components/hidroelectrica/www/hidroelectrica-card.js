@@ -17,11 +17,40 @@ class HidroelectricaCard extends HTMLElement {
     return found ? found[1] : null;
   }
 
+  _payableAmount() {
+    const entries = Object.entries(this._hass.states || {}).filter(([id]) =>
+      id.startsWith("sensor.hidroelectrica_")
+    );
+
+    // 1) Prefer dedicated factura_restanta attribute if present
+    for (const [, st] of entries) {
+      const attrs = st.attributes || {};
+      if (attrs["Total neachitat"]) return attrs["Total neachitat"];
+      if (attrs["De plată"]) return attrs["De plată"];
+      if (attrs["De plata"]) return attrs["De plata"];
+      if (attrs["total_neachitat"]) return attrs["total_neachitat"];
+    }
+
+    // 2) Fallback: try sold_factura attributes if integration exposes amount there
+    const sold = this._pick("sold_factura");
+    if (sold?.attributes) {
+      return (
+        sold.attributes["Total neachitat"] ||
+        sold.attributes["De plată"] ||
+        sold.attributes["De plata"] ||
+        sold.attributes["total_neachitat"] ||
+        "-"
+      );
+    }
+
+    return "-";
+  }
+
   _render() {
     if (!this._hass) return;
     const sold = this._pick("sold") || this._pick("sold_factura");
     const restanta = this._pick("factura_restanta");
-    const totalNeachitat = restanta?.attributes?.["Total neachitat"] || "-";
+    const totalNeachitat = this._payableAmount();
     const idxCons = this._pick("index_energie_electrica") || this._pick("index_consum");
     const idxProd = this._pick("index_energie_produsa") || this._pick("index_injectie");
 
