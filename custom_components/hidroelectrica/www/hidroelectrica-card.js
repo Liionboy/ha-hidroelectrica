@@ -18,31 +18,29 @@ class HidroelectricaCard extends HTMLElement {
   }
 
   _payableAmount() {
+    // 1) Prefer sold_factura attributes (de obicei cele mai precise)
+    const sold = this._pick("sold_factura");
+    if (sold?.attributes) {
+      const val =
+        sold.attributes["Sold"] ||
+        sold.attributes["Suma ultimei facturi"] ||
+        sold.attributes["Total neachitat"] ||
+        sold.attributes["De plată"] ||
+        sold.attributes["De plata"] ||
+        sold.attributes["total_neachitat"];
+      if (val && String(val).trim() !== "") return val;
+    }
+
+    // 2) Fallback: factura_restanta
     const entries = Object.entries(this._hass.states || {}).filter(([id]) =>
       id.startsWith("sensor.hidroelectrica_")
     );
-
-    // 1) Prefer dedicated factura_restanta attribute if present
     for (const [, st] of entries) {
       const attrs = st.attributes || {};
       if (attrs["Total neachitat"]) return attrs["Total neachitat"];
       if (attrs["De plată"]) return attrs["De plată"];
       if (attrs["De plata"]) return attrs["De plata"];
       if (attrs["total_neachitat"]) return attrs["total_neachitat"];
-    }
-
-    // 2) Fallback: try sold_factura attributes if integration exposes amount there
-    const sold = this._pick("sold_factura");
-    if (sold?.attributes) {
-      return (
-        sold.attributes["Sold"] ||
-        sold.attributes["Suma ultimei facturi"] ||
-        sold.attributes["Total neachitat"] ||
-        sold.attributes["De plată"] ||
-        sold.attributes["De plata"] ||
-        sold.attributes["total_neachitat"] ||
-        "-"
-      );
     }
 
     return "-";
