@@ -35,6 +35,8 @@ class HidroelectricaCard extends HTMLElement {
     const sold = this._pick("sold_factura");
     if (sold?.attributes) {
       return (
+        sold.attributes["Sold"] ||
+        sold.attributes["Suma ultimei facturi"] ||
         sold.attributes["Total neachitat"] ||
         sold.attributes["De plată"] ||
         sold.attributes["De plata"] ||
@@ -51,6 +53,10 @@ class HidroelectricaCard extends HTMLElement {
     const sold = this._pick("sold") || this._pick("sold_factura");
     const restanta = this._pick("factura_restanta");
     const totalNeachitat = this._payableAmount();
+    const soldAttrs = sold?.attributes || {};
+    const soldStatus = soldAttrs["Status"] || sold?.state || "-";
+    const soldDue = soldAttrs["Data scadenței"] || soldAttrs["Data scadentei"] || "-";
+    const soldInvoice = soldAttrs["Număr factură"] || soldAttrs["Numar factura"] || "-";
     const idxCons = this._pick("index_energie_electrica") || this._pick("index_consum");
     const idxProd = this._pick("index_energie_produsa") || this._pick("index_injectie");
 
@@ -65,9 +71,11 @@ class HidroelectricaCard extends HTMLElement {
         <div class="wrap">
           <div class="title">${this._config.title}</div>
           <div class="grid">
-            <div><span>Sold</span><strong>${sold?.state ?? "-"}</strong></div>
-            <div><span>Restanță</span><strong>${restanta?.state ?? "-"}</strong></div>
+            <div><span>Sold</span><strong>${totalNeachitat}</strong></div>
+            <div><span>Status</span><strong>${soldStatus}</strong></div>
             <div><span>Facturi curente (de plată)</span><strong>${totalNeachitat}</strong></div>
+            <div><span>Scadență</span><strong>${soldDue}</strong></div>
+            <div><span>Număr factură</span><strong>${soldInvoice}</strong></div>
             <div><span>Index consum</span><strong>${idxCons?.state ?? "-"}</strong></div>
             <div><span>Index producție</span><strong>${idxProd?.state ?? "-"}</strong></div>
           </div>
