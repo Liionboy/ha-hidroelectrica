@@ -21,6 +21,7 @@ class HidroelectricaCard extends HTMLElement {
     if (!this._hass) return;
     const sold = this._pick("sold") || this._pick("sold_factura");
     const restanta = this._pick("factura_restanta");
+    const totalNeachitat = restanta?.attributes?.["Total neachitat"] || "-";
     const idxCons = this._pick("index_energie_electrica") || this._pick("index_consum");
     const idxProd = this._pick("index_energie_produsa") || this._pick("index_injectie");
 
@@ -37,6 +38,7 @@ class HidroelectricaCard extends HTMLElement {
           <div class="grid">
             <div><span>Sold</span><strong>${sold?.state ?? "-"}</strong></div>
             <div><span>Restanță</span><strong>${restanta?.state ?? "-"}</strong></div>
+            <div><span>Facturi curente (de plată)</span><strong>${totalNeachitat}</strong></div>
             <div><span>Index consum</span><strong>${idxCons?.state ?? "-"}</strong></div>
             <div><span>Index producție</span><strong>${idxProd?.state ?? "-"}</strong></div>
           </div>
