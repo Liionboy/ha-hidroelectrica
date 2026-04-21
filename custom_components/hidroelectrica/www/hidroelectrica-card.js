@@ -56,7 +56,6 @@ class HidroelectricaCard extends HTMLElement {
     const soldAmount = soldAttrs["Sold"] || soldAttrs["Suma ultimei facturi"] || "-";
     const soldStatus = soldAttrs["Status"] || sold?.state || "-";
     const soldDue = soldAttrs["Data scadenței"] || soldAttrs["Data scadentei"] || "-";
-    const soldInvoice = soldAttrs["Număr factură"] || soldAttrs["Numar factura"] || "-";
     const lastIssued = restAttrs["Ultima factură emisă"] || "-";
     const lastType = restAttrs["Tip"] || "-";
     const lastDue = restAttrs["Scadentă"] || restAttrs["Scadenta"] || "-";
@@ -78,7 +77,6 @@ class HidroelectricaCard extends HTMLElement {
             <div><span>Status</span><strong>${soldStatus}</strong></div>
             <div><span>Facturi curente (de plată)</span><strong>${totalNeachitat}</strong></div>
             <div><span>Scadență</span><strong>${soldDue}</strong></div>
-            <div><span>Număr factură</span><strong>${soldInvoice}</strong></div>
             <div><span>Ultima factură emisă</span><strong>${lastIssued}</strong></div>
             <div><span>Tip factură</span><strong>${lastType}</strong></div>
             <div><span>Scadență (ultima)</span><strong>${lastDue}</strong></div>
