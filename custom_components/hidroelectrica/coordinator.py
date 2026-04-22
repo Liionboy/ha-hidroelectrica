@@ -232,9 +232,21 @@ class HidroelectricaCoordinator(DataUpdateCoordinator):
 
         except HidroelectricaApiError as err:
             _LOGGER.error("Eroare API la actualizarea datelor (UAN=%s): %s", uan, err)
+            if self.data:
+                _LOGGER.warning(
+                    "Păstrez ultimul set valid de date pentru UAN=%s (fallback după eroare API).",
+                    uan,
+                )
+                return self.data
             raise UpdateFailed(f"Eroare API Hidroelectrica: {err}") from err
         except Exception as err:
             _LOGGER.exception("Eroare neașteptată la actualizarea datelor (UAN=%s): %s", uan, err)
+            if self.data:
+                _LOGGER.warning(
+                    "Păstrez ultimul set valid de date pentru UAN=%s (fallback după eroare neașteptată).",
+                    uan,
+                )
+                return self.data
             raise UpdateFailed("Eroare neașteptată la actualizarea datelor Hidroelectrica.") from err
 
         # Persistăm token-ul

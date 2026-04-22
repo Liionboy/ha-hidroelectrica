@@ -694,28 +694,32 @@ class SoldFacturaSensor(HidroelectricaEntity):
         self._attr_name = "Sold factură"
         self._attr_unique_id = f"{DOMAIN}_sold_factura_{self._uan}"
         self._custom_entity_id = f"sensor.{DOMAIN}_{self._uan}_sold_factura"
+        self._last_native_value: str | None = None
+        self._last_attrs: dict[str, Any] = {"attribution": ATTRIBUTION}
 
     @property
     def native_value(self) -> str | None:
         bill = _get_bill_result(self.coordinator.data)
         if not bill:
-            return "Nu"
+            return self._last_native_value if self._last_native_value is not None else "Nu"
         rembalance = bill.get("rembalance", "0")
         try:
             val = parse_romanian_amount(str(rembalance))
             if val > 0:
-                return "Da"
-            if val < 0:
-                return "Credit"
-            return "Nu"
+                self._last_native_value = "Da"
+            elif val < 0:
+                self._last_native_value = "Credit"
+            else:
+                self._last_native_value = "Nu"
+            return self._last_native_value
         except (ValueError, TypeError):
-            return "Nu"
+            return self._last_native_value if self._last_native_value is not None else "Nu"
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         bill = _get_bill_result(self.coordinator.data)
         if not bill:
-            return {"attribution": ATTRIBUTION}
+            return self._last_attrs
 
         attrs: dict[str, Any] = {}
         rembalance = bill.get("rembalance", "0")
@@ -751,6 +755,7 @@ class SoldFacturaSensor(HidroelectricaEntity):
             attrs["Număr factură"] = invoicenumber
 
         attrs["attribution"] = ATTRIBUTION
+        self._last_attrs = attrs
         return attrs
 
 
