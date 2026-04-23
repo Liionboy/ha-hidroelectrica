@@ -1,6 +1,7 @@
 class HidroelectricaCard extends HTMLElement {
   setConfig(config) {
     this._config = { title: "Hidroelectrica", ...config };
+    this._cache = this._cache || {};
     if (!this.shadowRoot) this.attachShadow({ mode: "open" });
   }
 
@@ -48,6 +49,15 @@ class HidroelectricaCard extends HTMLElement {
 
   _render() {
     if (!this._hass) return;
+    const keep = (key, value) => {
+      const ok = value !== undefined && value !== null && String(value).trim() !== "" && String(value).trim() !== "-";
+      if (ok) {
+        this._cache[key] = value;
+        return value;
+      }
+      return this._cache[key] || "-";
+    };
+
     const sold = this._pick("sold") || this._pick("sold_factura");
     const restanta = this._pick("factura_restanta");
     const totalNeachitat = this._payableAmount();
@@ -56,9 +66,9 @@ class HidroelectricaCard extends HTMLElement {
     const soldAmount = soldAttrs["Sold"] || soldAttrs["Suma ultimei facturi"] || "-";
     const soldStatus = soldAttrs["Status"] || sold?.state || "-";
     const soldDue = soldAttrs["Data scadenței"] || soldAttrs["Data scadentei"] || "-";
-    const lastIssued = restAttrs["Ultima factură emisă"] || "-";
-    const lastType = restAttrs["Tip"] || "-";
-    const lastDue = restAttrs["Scadentă"] || restAttrs["Scadenta"] || "-";
+    const lastIssued = keep("lastIssued", restAttrs["Ultima factură emisă"]);
+    const lastType = keep("lastType", restAttrs["Tip"]);
+    const lastDue = keep("lastDue", restAttrs["Scadentă"] || restAttrs["Scadenta"]);
     const idxCons = this._pick("index_energie_electrica") || this._pick("index_consum");
     const idxProd = this._pick("index_energie_produsa") || this._pick("index_injectie");
 
