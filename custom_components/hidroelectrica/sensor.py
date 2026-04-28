@@ -770,6 +770,7 @@ class FacturaRestantaSensor(HidroelectricaEntity):
         self._attr_name = "Factură restantă"
         self._attr_unique_id = f"{DOMAIN}_factura_restanta_{self._uan}"
         self._custom_entity_id = f"sensor.{DOMAIN}_{self._uan}_factura_restanta"
+        self._last_attrs: dict[str, Any] = {}
 
     def _is_overdue(self) -> bool:
         bill = _get_bill_result(self.coordinator.data)
@@ -802,11 +803,16 @@ class FacturaRestantaSensor(HidroelectricaEntity):
     def extra_state_attributes(self) -> dict[str, Any]:
         data = self.coordinator.data
         if not data:
-            return {
+            attrs = {
                 "Total neachitat": "0,00 lei",
                 "Detalii": "Nu există facturi restante",
                 "attribution": ATTRIBUTION,
             }
+            # păstrăm ultimele metadate utile dacă temporar lipsesc datele din API
+            for k in ("Ultima factură emisă", "Tip", "Scadentă"):
+                if k in self._last_attrs:
+                    attrs[k] = self._last_attrs[k]
+            return attrs
 
         attrs: dict[str, Any] = {}
         bill = _get_bill_result(data)
@@ -840,8 +846,15 @@ class FacturaRestantaSensor(HidroelectricaEntity):
                 attrs["Tip"] = latest["invoiceType"]
             if latest.get("dueDate"):
                 attrs["Scadentă"] = latest["dueDate"]
+        else:
+            # fallback: dacă refresh-ul curent vine fără billing_list,
+            # păstrăm atributele ultimului set valid (evită nevoia de reload manual)
+            for k in ("Ultima factură emisă", "Tip", "Scadentă"):
+                if k in self._last_attrs:
+                    attrs[k] = self._last_attrs[k]
 
         attrs["attribution"] = ATTRIBUTION
+        self._last_attrs = attrs
         return attrs
 
 
